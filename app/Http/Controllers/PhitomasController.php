@@ -153,8 +153,7 @@ class PhitomasController extends Controller
         return $return;
     }
 
-    public function inventoryDataMigrationV2(Request $request)
-    {
+    public function inventoryDataMigrationV2(Request $request){
         $config = DB::connection('mysql')->select("select * from config where row_id =" . $request->input('config_id'));
         $tokenClient = new Client();
         $token = $tokenClient->get($config[0]->url . "/ido/token/" . $config[0]->config_name . "/" . $config[0]->username . "/" . $config[0]->password);

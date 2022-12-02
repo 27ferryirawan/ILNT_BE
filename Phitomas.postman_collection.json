@@ -1,0 +1,369 @@
+{
+	"info": {
+		"_postman_id": "7304e6e9-3914-4099-8a05-507f74513219",
+		"name": "Phitomas",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Exchange Rate",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"to_currency\": \"HKD\",\r\n    \"from_currency\": \"\",\r\n    \"date\": \"2022-11-02\",\r\n    \"type\": \"S\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/exchange-rates/",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"exchange-rates",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Batch Id",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"to_currency\": \"HKD\",\r\n    \"from_currency\": \"\",\r\n    \"date\": \"2022-11-02\",\r\n    \"type\": \"S\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/exchange-rates/",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"exchange-rates",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Read Config",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"to_currency\": \"HKD\",\r\n    \"from_currency\": \"\",\r\n    \"date\": \"2022-11-02\",\r\n    \"type\": \"S\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/exchange-rates/",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"exchange-rates",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "inventory Data Migration",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "files",
+							"type": "file",
+							"src": "/C:/Users/FerryIrawan/Desktop/laravel/BNM/sampledatafoodsales.xlsx"
+						},
+						{
+							"key": "batch_id",
+							"value": "DOC10",
+							"type": "default"
+						},
+						{
+							"key": "is_zero_cost",
+							"value": "1",
+							"type": "default"
+						},
+						{
+							"key": "config_id",
+							"value": "106",
+							"type": "default"
+						}
+					],
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/inventory-data-migration/",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"inventory-data-migration",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "inventory Data Migration V2",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "files",
+							"type": "file",
+							"src": "/C:/Users/FerryIrawan/Desktop/laravel/BNM/sampledatafoodsales.xlsx"
+						},
+						{
+							"key": "batch_id",
+							"value": "DOC10",
+							"type": "default"
+						},
+						{
+							"key": "is_zero_cost",
+							"value": "1",
+							"type": "default"
+						},
+						{
+							"key": "config_id",
+							"value": "106",
+							"type": "default"
+						}
+					],
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/inventory-data-migration/",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"inventory-data-migration",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Import Config",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "files",
+							"type": "file",
+							"src": "/C:/Users/FerryIrawan/Desktop/laravel/BNM/sampledatafoodsales.xlsx"
+						}
+					],
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/inventory-data-migration/",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"inventory-data-migration",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Batch Delete",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "files",
+							"type": "file",
+							"src": "/C:/Users/FerryIrawan/Desktop/laravel/BNM/sampledatafoodsales.xlsx"
+						}
+					],
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/inventory-data-migration/",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"inventory-data-migration",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Config",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n        \"site\": \"DALS\",\r\n        \"config_name\": \"Demo_DALS\",\r\n        \"username\": \"sa\",\r\n        \"password\": \"\",\r\n        \"url\": \"http://20.247.180.239/IDORequestService\"\r\n    }",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/create-config",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"create-config"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Config",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n        \"site\": \"DALS\",\r\n        \"config_name\": \"Demo_DALS\",\r\n        \"username\": \"sa\",\r\n        \"password\": \"\",\r\n        \"url\": \"http://20.247.180.239/IDORequestService\"\r\n    }",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/create-config",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"create-config"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Update Config",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n        \"site\": \"DALS\",\r\n        \"config_name\": \"Demo_DALS\",\r\n        \"username\": \"sa\",\r\n        \"password\": \"\",\r\n        \"url\": \"http://20.247.180.239/IDORequestService\"\r\n    }",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/create-config",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"create-config"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
