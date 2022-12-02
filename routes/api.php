@@ -22,7 +22,6 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 // Route::get('/exchange-rates', [App\Http\Controllers\PhitomasController::class@exchangeRates']);
 Route::get('/exchange-rates', 'PhitomasController@exchangeRates');
 Route::post('/inventory-data-migration', 'PhitomasController@inventoryDataMigration');
-Route::post('/inventory-data-migration-v2', 'PhitomasController@inventoryDataMigrationV2');
 Route::post('/inventory-data-migration-validate', 'PhitomasController@inventoryDataMigrationValidate');
 Route::post('/inventory-data-migration-insert', 'PhitomasController@inventoryDataMigrationInsert');
 Route::get('/get-batch-id', 'PhitomasController@getBatchId');
@@ -33,3 +32,18 @@ Route::post('/update-config', 'PhitomasController@updateConfig');
 Route::post('/delete-config', 'PhitomasController@deleteConfig');
 Route::post('/import-config', 'PhitomasController@importConfig');
 Route::post('/batch-delete-config', 'PhitomasController@batchDeleteConfig');
+
+//object.UniqueLot
+//object.LotGenExp
+//SL.SLInvparms
+
+//filter ParmKey = 0
+
+// if LotGenExp == 1
+//ExpandKyByTypeSp 
+
+// DataType == LotType
+// Key == LotNum excel
+// Site == site config
+// Result => lotNumber to final process
+// if not equal 1, lot num from excel
