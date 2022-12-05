@@ -154,16 +154,17 @@ class PhitomasController extends Controller
     }
 
     public function inventoryDataMigration(Request $request){
+
         $config = DB::connection('mysql')->select("select * from config where row_id =" . $request->input('config_id'));
         $tokenClient = new Client();
         $token = $tokenClient->get($config[0]->url . "/ido/token/" . $config[0]->config_name . "/" . $config[0]->username . "/" . $config[0]->password);
         $tokenData = json_decode($token->getBody()->getContents(), true)['Token'];
-
         
         //object.UniqueLot
         //object.LotGenExp
         //SL.SLInvparms
         //filter ParmKey = 0
+        $validateCount = 0;
         $UniqueLot = '';
         $LotGenExp = '';
         $loadCollectionClient = new Client();
@@ -174,10 +175,13 @@ class PhitomasController extends Controller
         $validateLotResponse = json_decode($validateLotRes->getBody()->getContents(), true);
         $UniqueLot = $validateLotResponse['Items'][0]['UniqueLot'];
         $LotGenExp = $validateLotResponse['Items'][0]['LotGenExp'];
+        
 
         $allSuccess = 0;
         $reader = Excel::load($request->file('files'));
         $results = $reader->get()->toArray();
+        // dd($results);
+        
 
         foreach ($results as $data) {
             $messageArray = [];
@@ -194,15 +198,16 @@ class PhitomasController extends Controller
                 "",
                 ""
             ];
+            
             $validateTransDateRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
             $validateTransDateResponse = json_decode($validateTransDateRes->getBody()->getContents(), true);
-
-            // if ($validateTransDateResponse['ReturnValue'] > 0){
+    
+            // if ($validateTransDateResponse['ReturnValue'] != 0){
             //     $errorMessage = $validateTransDateResponse['Parameters'][3];
             //     array_push($messageArray, $errorMessage);
             // } 
 
-            if ($validateTransDateResponse['ReturnValue'] > 0)
+            if ($validateTransDateResponse['ReturnValue'] != 0)
                 array_push($messageArray, $validateTransDateResponse['Parameters'][3]);
 
             //filter item
@@ -279,6 +284,20 @@ class PhitomasController extends Controller
             if ($data['qty_on_hand'] < 1)
                 array_push($messageArray, 'Qty on hand must greater than zero');
 
+            if ($data['reason_code'] == "")
+                array_push($messageArray, 'Reason code cant be empty');
+
+            $loadCollectionClient = new Client();
+            $loadCollectionIDO = 'SLReasons';
+            $loadCollectionProperties = 'ReasonCode,Description';['lot'];
+            $loadCollectionFilter = "ReasonClass = 'MISC RCPT' AND ReasonCode = '" .$data['reason_code']. "'";
+            $validateCheckLotExistsRes = $loadCollectionClient->request('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO . "?properties=" . $loadCollectionProperties . "&filter=" . $loadCollectionFilter, ['headers' => ['Authorization' => $tokenData]]);
+            $validateCheckReasonCodeResponse = json_decode($validateCheckLotExistsRes->getBody()->getContents(), true);
+            
+            if (count($validateCheckReasonCodeResponse['Items']) == 0) {
+                array_push($messageArray, 'Invalid Reason Code');
+            }
+
 
             // validate reason code
             $invokeClient = new Client();
@@ -310,7 +329,7 @@ class PhitomasController extends Controller
             $validateReasonDateRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
             $validateReasonDateResponse = json_decode($validateReasonDateRes->getBody()->getContents(), true);
 
-            if ($validateReasonDateResponse['ReturnValue'] > 0) {
+            if ($validateReasonDateResponse['ReturnValue'] != 0) {
                 // $errorMessage = $validateReasonDateResponse['Parameters'][13];
                 // array_push($messageArray, $errorMessage);
                 array_push($messageArray, $validateReasonDateResponse['Parameters'][13]);
@@ -336,14 +355,14 @@ class PhitomasController extends Controller
             $validatePhysicalCountRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
             $validatePhysicalCountResponse = json_decode($validatePhysicalCountRes->getBody()->getContents(), true);
 
-            // if ($validatePhysicalCountResponse['ReturnValue'] > 0){
+            // if ($validatePhysicalCountResponse['ReturnValue'] != 0){
             //     $errorMessage = $validatePhysicalCountResponse['Parameters'][3];
             //     array_push($messageArray, $errorMessage);
             // } else {
             //     $WhsePhyInvFlg = $validatePhysicalCountResponse['Parameters'][2];
             // }
 
-            $validatePhysicalCountResponse['ReturnValue'] > 0 ? array_push($messageArray, $validatePhysicalCountResponse['Parameters'][3]) : $WhsePhyInvFlg = $validatePhysicalCountResponse['Parameters'][2];
+            $validatePhysicalCountResponse['ReturnValue'] != 0 ? array_push($messageArray, $validatePhysicalCountResponse['Parameters'][3]) : $WhsePhyInvFlg = $validatePhysicalCountResponse['Parameters'][2];
 
             // validate check obsolete item
             $invokeClient = new Client();
@@ -363,12 +382,12 @@ class PhitomasController extends Controller
             $validateCheckObsoleteItemRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
             $validateCheckObsoleteItemResponse = json_decode($validateCheckObsoleteItemRes->getBody()->getContents(), true);
 
-            //  if ($validateCheckObsoleteItemResponse['ReturnValue'] > 0){
+            //  if ($validateCheckObsoleteItemResponse['ReturnValue'] != 0){
             //      $errorMessage = $validateCheckObsoleteItemResponse['Parameters'][5];
             //      array_push($messageArray, $errorMessage);
             //  } 
 
-            if ($validateCheckObsoleteItemResponse['ReturnValue'] > 0)
+            if ($validateCheckObsoleteItemResponse['ReturnValue'] != 0)
                 array_push($messageArray, $validateCheckObsoleteItemResponse['Parameters'][5]);
 
             // validate get default cost  
@@ -399,22 +418,34 @@ class PhitomasController extends Controller
             ];
             $validateGetDefaultCostRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
             $validateGetDefaultCostResponse = json_decode($validateGetDefaultCostRes->getBody()->getContents(), true);
-
-            if (($CostType == 'S' && $CostMethod = 'C')) {
-                $MatlCost = $validateGetDefaultCostResponse['Parameters'][2];
-                $LbrCost = $validateGetDefaultCostResponse['Parameters'][3];
-                $FovhdCost = $validateGetDefaultCostResponse['Parameters'][4];
-                $VovhdCost = $validateGetDefaultCostResponse['Parameters'][5];
-                $OutCost = $validateGetDefaultCostResponse['Parameters'][6];
-                $UnitCost = $validateGetDefaultCostResponse['Parameters'][7];
+            
+            if ($validateGetDefaultCostResponse['ReturnValue'] != 0){
+                array_push($messageArray, 'Get default cost error');
             } else {
-                $MatlCost = $data['matl_cost'] == "" ? 0 : $data['matl_cost'];
-                $LbrCost = $data['lbr_cost'] == "" ? 0 : $data['lbr_cost'];
-                $FovhdCost = $data['fovhd_cost'] == "" ? 0 : $data['fovhd_cost'];
-                $VovhdCost = $data['vovhd_cost'] == "" ? 0 : $data['vovhd_cost'];
-                $OutCost = $data['out_cost'] == "" ? 0 : $data['out_cost'];
-                $UnitCost = $data['matl_cost'] + $data['lbr_cost'] + $data['fovhd_cost'] + $data['vovhd_cost'] + $data['out_cost'];
+                if (($CostType == 'S' && $CostMethod = 'C')) {
+                    $MatlCost = $validateGetDefaultCostResponse['Parameters'][2];
+                    $LbrCost = $validateGetDefaultCostResponse['Parameters'][3];
+                    $FovhdCost = $validateGetDefaultCostResponse['Parameters'][4];
+                    $VovhdCost = $validateGetDefaultCostResponse['Parameters'][5];
+                    $OutCost = $validateGetDefaultCostResponse['Parameters'][6];
+                    $UnitCost = $validateGetDefaultCostResponse['Parameters'][7];
+                } else {
+                    $MatlCost = $data['matl_cost'] == "" ? 0 : $data['matl_cost'];
+                    $LbrCost = $data['lbr_cost'] == "" ? 0 : $data['lbr_cost'];
+                    $FovhdCost = $data['fovhd_cost'] == "" ? 0 : $data['fovhd_cost'];
+                    $VovhdCost = $data['vovhd_cost'] == "" ? 0 : $data['vovhd_cost'];
+                    $OutCost = $data['out_cost'] == "" ? 0 : $data['out_cost'];
+                    $UnitCost = $data['matl_cost'] + $data['lbr_cost'] + $data['fovhd_cost'] + $data['vovhd_cost'] + $data['out_cost'];
+                }
             }
+            $costObject[] = [
+                'MatlCost' => $MatlCost,
+                'LbrCost' => $LbrCost,
+                'FovhdCost' => $FovhdCost,
+                'VovhdCost' => $VovhdCost,
+                'OutCost' => $OutCost,
+                'UnitCost' => $UnitCost,
+            ];
             // if (($MatlCost + $LbrCost + $FovhdCost + $VovhdCost + $OutCost == 0) && $request->input('is_zero_cost') == 0){
             //     $errorMessage = 'Unit cost is zero, not allowed to process';
             //     array_push($messageArray, $errorMessage);
@@ -436,6 +467,8 @@ class PhitomasController extends Controller
                 'Loc' => $data['loc'],
                 'Lot' => $data['lot'],
                 'Qty on Hand' => $data['qty_on_hand'],
+                'Expired Date' => $data['expired_date'],
+                'Vendor Lot' => $data['vendor_lot'],
                 'Reason Code' => $data['reason_code'],
                 'Perm Flag' => $data['perm_flag'],
                 'Matl Cost' => $data['matl_cost'],
@@ -462,6 +495,7 @@ class PhitomasController extends Controller
                 'SerialTracked' => $SerialTracked,
                 'UM' => $UM,
             ];
+            $validateCount++;
         }
         
         if ($allSuccess == 0) {
@@ -483,6 +517,7 @@ class PhitomasController extends Controller
                 for ($i = 0; $i < count($results); $i++) {
 
                     $messageArray = [];
+                    $allSuccess = 0;
                     //filter item loc exist
                     $loadCollectionClient = new Client();
                     $loadCollectionIDO = 'SLItemLocs';
@@ -514,56 +549,62 @@ class PhitomasController extends Controller
                         ];
                         $validateAddLocRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
                         $validateAddLocResponse = json_decode($validateAddLocRes->getBody()->getContents(), true);
-                        
+
+                        if($validateAddLocResponse['ReturnValue'] != 0) array_push($messageArray, 'Add location error');
                     }
+                    
 
                     if ($successObject[$i]['LotTracked'] == 1) {
+
+                        // validate expand lot
+                        // if LotGenExp == 1
+                        //ExpandKyByTypeSp 
+
+                        // DataType == LotType
+                        // Key == LotNum excel
+                        // Site == site config
+                        // Result => lotNumber to final process
+                        // if not equal 1, lot num from excel
+                        if($LotGenExp == 1){
+                            $ExpandLotResult = '';
+                            $invokeClient = new Client();
+                            $invokeIDO = 'SLPurchaseOrders';
+                            $invokeMethod = 'ExpandKyByTypeSp';
+                            $invokeBody = [
+                                'LotType',
+                                $results[$i]['lot'],
+                                $config[0]->site,
+                                "",
+                            ];
+                            $validateExpandLotRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
+                            $validateExpandLotResponse = json_decode($validateExpandLotRes->getBody()->getContents(), true);
+                            if($validateExpandLotResponse['ReturnValue'] != 0){
+                                array_push($messageArray, 'Expand error');
+                            }else{
+                                $ExpandLotResult = $validateExpandLotResponse['Parameters'][3];
+                            }
+                        }
+
                         //filter check lot exists
                         $loadCollectionClient = new Client();
                         $loadCollectionIDO = 'SLLots';
                         $loadCollectionProperties = 'Item, Lot';
-                        $loadCollectionFilter = "Item = '" . $results[$i]['item'] . "' AND Lot = '" . $results[$i]['lot'] . "'";
+                        $filteredLot = ($LotGenExp == 1 && $successObject[$i]['LotTracked'] == 1) ? $ExpandLotResult : $results[$i]['lot'];
+                        $loadCollectionFilter = "Item = '" . $results[$i]['item'] . "' AND Lot = '" .$filteredLot. "'";
                         $validateCheckLotExistsRes = $loadCollectionClient->request('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO . "?properties=" . $loadCollectionProperties . "&filter=" . $loadCollectionFilter, ['headers' => ['Authorization' => $tokenData]]);
                         $validateCheckLotExistsResponse = json_decode($validateCheckLotExistsRes->getBody()->getContents(), true);
                         
-                        // return $validateCheckLotExistsResponse;
 
                         if (count($validateCheckLotExistsResponse['Items']) == 0) {
-
-                             // validate expand lot
-                            // if LotGenExp == 1
-                            //ExpandKyByTypeSp 
-
-                            // DataType == LotType
-                            // Key == LotNum excel
-                            // Site == site config
-                            // Result => lotNumber to final process
-                            // if not equal 1, lot num from excel
-                            if($LotGenExp == 1){
-                                $ExpandLotResult = '';
-                                $invokeClient = new Client();
-                                $invokeIDO = 'SLPurchaseOrders';
-                                $invokeMethod = 'ExpandKyByTypeSp';
-                                $invokeBody = [
-                                    'LotType',
-                                    $results[$i]['lot'],
-                                    $config[0]->site,
-                                    "",
-                                ];
-                                $validateExpandLotRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
-                                $validateExpandLotResponse = json_decode($validateExpandLotRes->getBody()->getContents(), true);
-                                $ExpandLotResult = $validateExpandLotResponse['Parameters'][3];
-                                // dd($LotTracked);
-                                
-                            }
-
+                            
+                            
                             // validate add lot
                             $invokeClient = new Client();
                             $invokeIDO = 'SLLots';
                             $invokeMethod = 'LotAddSp';
                             $invokeBody = [
                                 $results[$i]['item'],
-                                $results[$i]['lot'],
+                                ($LotGenExp == 1 && $successObject[$i]['LotTracked'] == 1) ? $ExpandLotResult : $results[$i]['lot'],
                                 "0",
                                 "",
                                 $results[$i]['vendor_lot'],
@@ -577,54 +618,65 @@ class PhitomasController extends Controller
                             ];
                             $validateAddLocRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
                             $validateAddLotResponse = json_decode($validateAddLocRes->getBody()->getContents(), true);
-                            
+                            if($validateAddLotResponse['ReturnValue'] != 0 || $validateAddLotResponse['ReturnValue'] == null ){
+                                array_push($messageArray, $validateAddLotResponse['Message']);
+                            } 
                         }
                     }
 
-                    
-                    //final process
-                    $invokeClient = new Client();
-                    $invokeIDO = 'SLStockActItems';
-                    $invokeMethod = 'ItemMiscReceiptSp';
-                    //  'S', <Item>,<Whse>, <Qty>, <UM>, <MatlCost>, <LbrCost>, <FovhdCost>, <VovhdCost>, <OutCost>, <UnitCost>, <Loc>, <Lot>, <ReasonCode>, <Acct>, <AcctUnit1>, <AcctUnit2>, AcctUnit3>,<AcctUnit4>, <Transdate>, , <DocumentNum>, <ImportDocId>, , , 
-                    
-                    $invokeBody = [
-                        $results[$i]['item'],
-                        $results[$i]['whse'],
-                        $results[$i]['qty_on_hand'],
-                        $successObject[$i]['UM'],
-                        $MatlCost,
-                        $LbrCost,
-                        $FovhdCost,
-                        $VovhdCost,
-                        $OutCost,
-                        $UnitCost,
-                        $results[$i]['loc'],
-                        ($LotGenExp == 1 && $successObject[$i]['LotTracked'] == 1) ? $ExpandLotResult : $results[$i]['lot'],
-                        $results[$i]['reason_code'],
-                        $successObject[$i]['Acct'],
-                        $successObject[$i]['AcctUnit1'],
-                        $successObject[$i]['AcctUnit2'],
-                        $successObject[$i]['AcctUnit3'],
-                        $successObject[$i]['AcctUnit4'],
-                        $results[$i]['trans_date'],
-                        "",
-                        $request->input('batch_id'), //document_num <= 12 character
-                        "", //ImportDocId
-                        "",
-                        "",
-                        // ""
-                    ];
+                    $allSuccess = count($messageArray) == 0 ? $allSuccess : $allSuccess + 1;
+                    if($allSuccess == 0){
+                        //final process
+                        $invokeClient = new Client();
+                        $invokeIDO = 'SLStockActItems';
+                        $invokeMethod = 'ItemMiscReceiptSp';
+                        
+                        $invokeBody = [
+                            $results[$i]['item'],
+                            $results[$i]['whse'],
+                            $results[$i]['qty_on_hand'],
+                            $successObject[$i]['UM'],
+                            $costObject[$i]['MatlCost'],
+                            $costObject[$i]['LbrCost'],
+                            $costObject[$i]['FovhdCost'],
+                            $costObject[$i]['VovhdCost'],
+                            $costObject[$i]['OutCost'],
+                            $costObject[$i]['UnitCost'],
+                            $results[$i]['loc'],
+                            ($LotGenExp == 1 && $successObject[$i]['LotTracked'] == 1) ? $ExpandLotResult : $results[$i]['lot'],
+                            $results[$i]['reason_code'],
+                            $successObject[$i]['Acct'],
+                            $successObject[$i]['AcctUnit1'],
+                            $successObject[$i]['AcctUnit2'],
+                            $successObject[$i]['AcctUnit3'],
+                            $successObject[$i]['AcctUnit4'],
+                            $results[$i]['trans_date'],
+                            "",
+                            $request->input('batch_id'), //document_num <= 12 character
+                            "", //ImportDocId
+                            "",
+                            "",
+                            // ""
+                        ];
 
-                    $validateFinalProcessRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' =>     $invokeBody]);
-                    $validateFinalProcessResponse = json_decode($validateFinalProcessRes->getBody()->getContents(), true);
+                        $validateFinalProcessRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' =>     $invokeBody]);
+                        $validateFinalProcessResponse = json_decode($validateFinalProcessRes->getBody()->getContents(), true);
 
-                    if ($validateFinalProcessResponse['ReturnValue'] > 0) {
-                        $errorMessage = $validateFinalProcessResponse['Parameters'];
-                        array_push($messageArray, $errorMessage);
+                        if ($validateFinalProcessResponse['ReturnValue'] != 0 || $validateFinalProcessResponse['ReturnValue'] == null) {
+                            $errorMessage = $validateFinalProcessResponse['Message'];
+                            array_push($messageArray, $errorMessage);
+                        } else {
+                            // $errorMessage = $validateFinalProcessResponse['Message'] == null ? "" : $validateFinalProcessResponse['Message'];
+                            // array_push($messageArray, $errorMessage);
+                        }
+                        $allSuccess = count($messageArray) == 0 ? $allSuccess : $allSuccess + 1;
+                        if($allSuccess == 0){
+                            $status = "Data inserted!";
+                        } else {
+                            $status = "Error";
+                        }
                     } else {
-                        // $errorMessage = $validateFinalProcessResponse['Message'] == null ? "" : $validateFinalProcessResponse['Message'];
-                        // array_push($messageArray, $errorMessage);
+                        $status = "Error";
                     }
 
                     $returnProcess[] = [
@@ -638,6 +690,8 @@ class PhitomasController extends Controller
                         'Loc' => $results[$i]['loc'],
                         'Lot' => $results[$i]['lot'],
                         'Qty on Hand' => $results[$i]['qty_on_hand'],
+                        'Expired Date' => $results[$i]['expired_date'],
+                        'Vendor Lot' => $results[$i]['vendor_lot'],
                         'Reason Code' => $results[$i]['reason_code'],
                         'Perm Flag' => $results[$i]['perm_flag'],
                         'Matl Cost' => $results[$i]['matl_cost'],
@@ -650,7 +704,6 @@ class PhitomasController extends Controller
                         'Notes' => $results[$i]['notes'],
                         'Message' => $messageArray
                     ];
-                    $status = "Data inserted!";
                 }
             }
 
@@ -683,8 +736,7 @@ class PhitomasController extends Controller
     }
 
     public function exchangeRates(Request $request)
-    {
-
+    { 
         $tokenClient = new Client();
         $token = $tokenClient->get('http://20.247.180.239/IDORequestService/ido/token/Demo_DALS/sa');
         $tokenData = json_decode($token->getBody()->getContents(), true)['Token'];
@@ -730,7 +782,9 @@ class PhitomasController extends Controller
         foreach ($to_currency as $data) {
             $client = new Client(['headers' => ['Accept' => 'application/vnd.BNM.API.v1+json']]);
             $quote = 'rm';
+            // dd('https://api.bnm.gov.my/public/exchange-rate/' . $data->map_curr_code . '/date/' . $request->date . '?session=0900&quote=' . $quote);
             $res = $client->get('https://api.bnm.gov.my/public/exchange-rate/' . $data->map_curr_code . '/date/' . $request->date . '?session=0900&quote=' . $quote);
+            ;
             $bnmData = $res->getBody()->getContents();
             $datas = json_decode($bnmData, true);
 
@@ -792,6 +846,7 @@ class PhitomasController extends Controller
         }
 
         $insertBody['Changes'] = $changes;
+        return($insertBody);
         $insertClient = new Client();
         $insertRes = $insertClient->request('POST', 'http://20.247.180.239/IDORequestService/ido/update/SLCurrates?refresh=true', ['headers' => ['Authorization' => $tokenData], 'json' => $insertBody]);
         $insertResponse = json_decode($insertRes->getBody()->getContents(), true);
