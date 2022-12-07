@@ -22,8 +22,7 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 // Route::get('/exchange-rates', [App\Http\Controllers\PhitomasController::class@exchangeRates']);
 Route::get('/exchange-rates', 'PhitomasController@exchangeRates');
 Route::post('/inventory-data-migration', 'PhitomasController@inventoryDataMigration');
-Route::post('/inventory-data-migration-validate', 'PhitomasController@inventoryDataMigrationValidate');
-Route::post('/inventory-data-migration-insert', 'PhitomasController@inventoryDataMigrationInsert');
+Route::post('/inventory-data-migration-v2', 'PhitomasControllerV2@inventoryDataMigration');
 Route::get('/get-batch-id', 'PhitomasController@getBatchId');
 
 Route::get('/read-config', 'PhitomasController@readConfig');

@@ -6,7 +6,9 @@ use Illuminate\Http\Request;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
-
+use Carbon\Carbon;
+use DateTime;
+use Illuminate\Support\Facades\Http;
 
 class PhitomasController extends Controller
 {
@@ -154,16 +156,32 @@ class PhitomasController extends Controller
     }
 
     public function inventoryDataMigration(Request $request){
-
+        
         $config = DB::connection('mysql')->select("select * from config where row_id =" . $request->input('config_id'));
         $tokenClient = new Client();
         $token = $tokenClient->get($config[0]->url . "/ido/token/" . $config[0]->config_name . "/" . $config[0]->username . "/" . $config[0]->password);
         $tokenData = json_decode($token->getBody()->getContents(), true)['Token'];
+
+        $isBatchExist = false;
+        $loadCollectionClient = new Client();
+        $loadCollectionIDO = 'SLMatltrans';
+        $loadCollectionProperties = 'DocumentNum, TransType, RefType';
+        $loadCollectionFilter = "DocumentNum = '" . $request->input('batch_id') . "' AND TransType= 'H' AND RefType = 'I'";
+        $validateBatchRes = $loadCollectionClient->request('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO . "?properties=" . $loadCollectionProperties . "&filter=" . $loadCollectionFilter, ['headers' => ['Authorization' => $tokenData]]);
+        $validateBatchResponse = json_decode($validateBatchRes->getBody()->getContents(), true);
+
+        $isBatchExist = count($validateBatchResponse['Items']) > 0 ? true : false;
         
-        //object.UniqueLot
-        //object.LotGenExp
-        //SL.SLInvparms
-        //filter ParmKey = 0
+        if ($isBatchExist) {
+            $returnMessage = [
+                "Status" => "Batch Number Exists",
+                "Detail" => [],
+                "DetailAll" => []
+            ];
+            return $returnMessage;
+        } 
+        
+        //Get Batch
         $validateCount = 0;
         $UniqueLot = '';
         $LotGenExp = '';
@@ -171,22 +189,49 @@ class PhitomasController extends Controller
         $loadCollectionIDO = 'SLInvparms';
         $loadCollectionProperties = 'UniqueLot, LotGenExp';
         $loadCollectionFilter = "ParmKey = 0";
+        $start_time = Carbon::now()->toDateTimeString();
         $validateLotRes = $loadCollectionClient->request('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO . "?properties=" . $loadCollectionProperties . "&filter=" . $loadCollectionFilter, ['headers' => ['Authorization' => $tokenData]]);
         $validateLotResponse = json_decode($validateLotRes->getBody()->getContents(), true);
         $UniqueLot = $validateLotResponse['Items'][0]['UniqueLot'];
         $LotGenExp = $validateLotResponse['Items'][0]['LotGenExp'];
+        $end_time = Carbon::now()->toDateTimeString();
         
+        // $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+        //     [
+        //         'batch_id' => $request->input('batch_id'),
+        //         'row_no' => -1,
+        //         'method_name' => 'Get Batch',
+        //         'start_time' => $start_time,
+        //         'end_time' => $end_time,
+        //         'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+        //     ]
+        // );
 
         $allSuccess = 0;
+        $start_time = Carbon::now()->toDateTimeString();
         $reader = Excel::load($request->file('files'));
         $results = $reader->get()->toArray();
         // dd($results);
+        $end_time = Carbon::now()->toDateTimeString();
         
-
+        // $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+        //     [
+        //         'batch_id' => $request->input('batch_id'),
+        //         'row_no' => -1,
+        //         'method_name' => 'Read Excel',
+        //         'start_time' => $start_time,
+        //         'end_time' => $end_time,
+        //         'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+        //     ]
+        // );
+        
+        
+        $rowCount = 0;
         foreach ($results as $data) {
             $messageArray = [];
-
-            // validate trans date
+            $rowCount++;
+            // Invoke trans date
+            $start_time = Carbon::now()->toDateTimeString();
             $invokeClient = new Client();
             $invokeIDO = 'SLPeriods';
             $invokeMethod = 'DateChkSp';
@@ -201,16 +246,23 @@ class PhitomasController extends Controller
             
             $validateTransDateRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
             $validateTransDateResponse = json_decode($validateTransDateRes->getBody()->getContents(), true);
-    
-            // if ($validateTransDateResponse['ReturnValue'] != 0){
-            //     $errorMessage = $validateTransDateResponse['Parameters'][3];
-            //     array_push($messageArray, $errorMessage);
-            // } 
-
             if ($validateTransDateResponse['ReturnValue'] != 0)
                 array_push($messageArray, $validateTransDateResponse['Parameters'][3]);
+            $end_time = Carbon::now()->toDateTimeString();
+        
+            // $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+            //     [
+            //         'batch_id' => $request->input('batch_id'),
+            //         'row_no' => $rowCount,
+            //         'method_name' => 'Invoke Trans Date',
+            //         'start_time' => $start_time,
+            //         'end_time' => $end_time,
+            //         'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+            //     ]
+            // );
 
-            //filter item
+            //load item
+            $start_time = Carbon::now()->toDateTimeString();
             $LotTracked = '';
             $SerialTracked = '';
             $UM = '';
@@ -224,8 +276,6 @@ class PhitomasController extends Controller
             $validateItemResponse = json_decode($validateItemRes->getBody()->getContents(), true);
       
             if (count($validateItemResponse['Items']) == 0) {
-                // $errorMessage = 'Invalid Item, LotTracked, SerialTracked, UM';
-                // array_push($messageArray, $errorMessage);
                 array_push($messageArray, 'Invalid Item, LotTracked, SerialTracked, UM');
             } else {
                 $LotTracked = $validateItemResponse['Items'][0]['LotTracked'];
@@ -234,17 +284,26 @@ class PhitomasController extends Controller
                 $CostMethod = $validateItemResponse['Items'][0]['CostMethod'];
                 $UM = $validateItemResponse['Items'][0]['UM'];
                 if ($LotTracked == 0 && $data['lot'] != "") {
-                    // $errorMessage = 'This is not a lot tracked item, lot is not required';
-                    // array_push($messageArray, $errorMessage);
                     array_push($messageArray, 'This is not a lot tracked item, lot is not required');
                 } else if ($LotTracked == 1 && $data['lot'] == "") {
-                    // $errorMessage = 'This is a lot tracked item, lot is required';
-                    // array_push($messageArray, $errorMessage);
                     array_push($messageArray, 'This is a lot tracked item, lot is required');
                 }
             }
+            $end_time = Carbon::now()->toDateTimeString();
+        
+            // $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+            //     [
+            //         'batch_id' => $request->input('batch_id'),
+            //         'row_no' => $rowCount,
+            //         'method_name' => 'Check Item Exist',
+            //         'start_time' => $start_time,
+            //         'end_time' => $end_time,
+            //         'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+            //     ]
+            // );
 
-            //filter whse
+            //load whse
+            $start_time = Carbon::now()->toDateTimeString();
             $loadCollectionClient = new Client();
             $loadCollectionIDO = 'SLItemWhses';
             $loadCollectionProperties = 'Item, Whse';
@@ -252,54 +311,90 @@ class PhitomasController extends Controller
             $validateWhseRes = $loadCollectionClient->request('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO . "?properties=" . $loadCollectionProperties . "&filter=" . $loadCollectionFilter, ['headers' => ['Authorization' => $tokenData]]);
             $validateWhseResponse = json_decode($validateWhseRes->getBody()->getContents(), true);
 
-            // if(count($validateWhseResponse['Items']) == 0){
-            //     $errorMessage = 'Invalid Item and Warehouse';
-            //     array_push($messageArray, $errorMessage);
-            // } 
+            
             if (count($validateWhseResponse['Items']) == 0)
                 array_push($messageArray, 'Invalid Item and Warehouse');
+            $end_time = Carbon::now()->toDateTimeString();
+        
+            // $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+            //     [
+            //         'batch_id' => $request->input('batch_id'),
+            //         'row_no' => $rowCount,
+            //         'method_name' => 'Check Whse Exist',
+            //         'start_time' => $start_time,
+            //         'end_time' => $end_time,
+            //         'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+            //     ]
+            // );
 
-            //filter loc
+            //load loc
+            $start_time = Carbon::now()->toDateTimeString();
             $loadCollectionClient = new Client();
             $loadCollectionIDO = 'SLLocations';
             $loadCollectionProperties = 'Loc';
             $loadCollectionFilter = "Loc = '" . $data['loc'] . "'";
             $validateLocRes = $loadCollectionClient->request('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO . "?properties=" . $loadCollectionProperties . "&filter=" . $loadCollectionFilter, ['headers' => ['Authorization' => $tokenData]]);
-            $validateLocResponse = json_decode($validateLocRes->getBody()->getContents(), true);
-
-            // if(count($validateLocResponse['Items']) == 0){
-            //     $errorMessage = 'Invalid Location';
-            //     array_push($messageArray, $errorMessage);
-            // } 
+            $validateLocResponse = json_decode($validateLocRes->getBody()->getContents(), true); 
 
             if (count($validateLocResponse['Items']) == 0)
                 array_push($messageArray, 'Invalid Location');
+            $end_time = Carbon::now()->toDateTimeString();
+            // $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+            //     [
+            //         'batch_id' => $request->input('batch_id'),
+            //         'row_no' => $rowCount,
+            //         'method_name' => 'Check Loc Exist',
+            //         'start_time' => $start_time,
+            //         'end_time' => $end_time,
+            //         'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+            //     ]
+            // );
 
-            //validate qty on hand
-            // if($data['qty_on_hand'] < 1){
-            //     $errorMessage = 'Qty on hand must greater than zero';
-            //     array_push($messageArray, $errorMessage);
-            // } 
-
+            $start_time = Carbon::now()->toDateTimeString();
             if ($data['qty_on_hand'] < 1)
                 array_push($messageArray, 'Qty on hand must greater than zero');
+            $end_time = Carbon::now()->toDateTimeString();
+            // $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+            //     [
+            //         'batch_id' => $request->input('batch_id'),
+            //         'row_no' => $rowCount,
+            //         'method_name' => 'Qty validate',
+            //         'start_time' => $start_time,
+            //         'end_time' => $end_time,
+            //         'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+            //     ]
+            // );
 
+            $start_time = Carbon::now()->toDateTimeString();
             if ($data['reason_code'] == "")
                 array_push($messageArray, 'Reason code cant be empty');
-
+            //load reason
+            
             $loadCollectionClient = new Client();
             $loadCollectionIDO = 'SLReasons';
-            $loadCollectionProperties = 'ReasonCode,Description';['lot'];
+            $loadCollectionProperties = 'ReasonCode,Description';
             $loadCollectionFilter = "ReasonClass = 'MISC RCPT' AND ReasonCode = '" .$data['reason_code']. "'";
             $validateCheckLotExistsRes = $loadCollectionClient->request('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO . "?properties=" . $loadCollectionProperties . "&filter=" . $loadCollectionFilter, ['headers' => ['Authorization' => $tokenData]]);
             $validateCheckReasonCodeResponse = json_decode($validateCheckLotExistsRes->getBody()->getContents(), true);
             
-            if (count($validateCheckReasonCodeResponse['Items']) == 0) {
+            if (count($validateCheckReasonCodeResponse['Items']) == 0)
                 array_push($messageArray, 'Invalid Reason Code');
-            }
+            
+            $end_time = Carbon::now()->toDateTimeString();
+            // $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+            //     [
+            //         'batch_id' => $request->input('batch_id'),
+            //         'row_no' => $rowCount,
+            //         'method_name' => 'Reason validate',
+            //         'start_time' => $start_time,
+            //         'end_time' => $end_time,
+            //         'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+            //     ]
+            // );
 
 
             // validate reason code
+            $start_time = Carbon::now()->toDateTimeString();
             $invokeClient = new Client();
             $invokeIDO = 'SLReasons';
             $invokeMethod = 'ReasonGetInvAdjAcctSp';
@@ -330,8 +425,6 @@ class PhitomasController extends Controller
             $validateReasonDateResponse = json_decode($validateReasonDateRes->getBody()->getContents(), true);
 
             if ($validateReasonDateResponse['ReturnValue'] != 0) {
-                // $errorMessage = $validateReasonDateResponse['Parameters'][13];
-                // array_push($messageArray, $errorMessage);
                 array_push($messageArray, $validateReasonDateResponse['Parameters'][13]);
             } else {
                 $Acct = $validateReasonDateResponse['Parameters'][3];
@@ -340,8 +433,20 @@ class PhitomasController extends Controller
                 $AcctUnit3 = $validateReasonDateResponse['Parameters'][6];
                 $AcctUnit4 = $validateReasonDateResponse['Parameters'][7];
             }
+            $end_time = Carbon::now()->toDateTimeString();
+            // $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+            //     [
+            //         'batch_id' => $request->input('batch_id'),
+            //         'row_no' => $rowCount,
+            //         'method_name' => 'Invoke Reason',
+            //         'start_time' => $start_time,
+            //         'end_time' => $end_time,
+            //         'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+            //     ]
+            // );
 
-            // validate physical count in place
+            // invoke physical count in place
+            $start_time = Carbon::now()->toDateTimeString();
             $WhsePhyInvFlg = false;
             $invokeClient = new Client();
             $invokeIDO = 'SLWhses';
@@ -355,16 +460,21 @@ class PhitomasController extends Controller
             $validatePhysicalCountRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
             $validatePhysicalCountResponse = json_decode($validatePhysicalCountRes->getBody()->getContents(), true);
 
-            // if ($validatePhysicalCountResponse['ReturnValue'] != 0){
-            //     $errorMessage = $validatePhysicalCountResponse['Parameters'][3];
-            //     array_push($messageArray, $errorMessage);
-            // } else {
-            //     $WhsePhyInvFlg = $validatePhysicalCountResponse['Parameters'][2];
-            // }
-
             $validatePhysicalCountResponse['ReturnValue'] != 0 ? array_push($messageArray, $validatePhysicalCountResponse['Parameters'][3]) : $WhsePhyInvFlg = $validatePhysicalCountResponse['Parameters'][2];
+            $end_time = Carbon::now()->toDateTimeString();
+            // $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+            //     [
+            //         'batch_id' => $request->input('batch_id'),
+            //         'row_no' => $rowCount,
+            //         'method_name' => 'Invoke Physical count',
+            //         'start_time' => $start_time,
+            //         'end_time' => $end_time,
+            //         'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+            //     ]
+            // );
 
-            // validate check obsolete item
+            // invoke obsolete item
+            $start_time = Carbon::now()->toDateTimeString();
             $invokeClient = new Client();
             $invokeIDO = 'SLItems';
             $invokeMethod = 'ObsSlowSp';
@@ -382,20 +492,22 @@ class PhitomasController extends Controller
             $validateCheckObsoleteItemRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
             $validateCheckObsoleteItemResponse = json_decode($validateCheckObsoleteItemRes->getBody()->getContents(), true);
 
-            //  if ($validateCheckObsoleteItemResponse['ReturnValue'] != 0){
-            //      $errorMessage = $validateCheckObsoleteItemResponse['Parameters'][5];
-            //      array_push($messageArray, $errorMessage);
-            //  } 
 
             if ($validateCheckObsoleteItemResponse['ReturnValue'] != 0)
                 array_push($messageArray, $validateCheckObsoleteItemResponse['Parameters'][5]);
+            $end_time = Carbon::now()->toDateTimeString();
+            // $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+            //     [
+            //         'batch_id' => $request->input('batch_id'),
+            //         'row_no' => $rowCount,
+            //         'method_name' => 'Invoke obsolete item',
+            //         'start_time' => $start_time,
+            //         'end_time' => $end_time,
+            //         'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+            //     ]
+            // );
 
-            // validate get default cost  
-            //if costtype = 'S' AND costmethod = 'C' or excel matlcost empty
-            //get all default cost from step 8
-            // RVAR P(MatlCost), RVAR P(LbrCost), RVAR P(FovhdCost), RVAR P(VovhdCost), RVAR P(OutCost), RVAR P(UnitCost), Message, Severity
-            //if total all cost except unitcost = 0 AND flag allowed zero = 0 and return error message unit cost is zero, not allowed to process
-
+            $start_time = Carbon::now()->toDateTimeString();
             $MatlCost = '';
             $LbrCost = '';
             $FovhdCost = '';
@@ -446,12 +558,19 @@ class PhitomasController extends Controller
                 'OutCost' => $OutCost,
                 'UnitCost' => $UnitCost,
             ];
-            // if (($MatlCost + $LbrCost + $FovhdCost + $VovhdCost + $OutCost == 0) && $request->input('is_zero_cost') == 0){
-            //     $errorMessage = 'Unit cost is zero, not allowed to process';
-            //     array_push($messageArray, $errorMessage);
-            // }
-
             ($MatlCost + $LbrCost + $FovhdCost + $VovhdCost + $OutCost == 0) && $request->input('is_zero_cost') == 0 ? array_push($messageArray, 'Unit cost is zero, not allowed to process') : null;
+            $end_time = Carbon::now()->toDateTimeString();
+            // $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+            //     [
+            //         'batch_id' => $request->input('batch_id'),
+            //         'row_no' => $rowCount,
+            //         'method_name' => 'Get Default Cost',
+            //         'start_time' => $start_time,
+            //         'end_time' => $end_time,
+            //         'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+            //     ]
+            // );
+            
 
             if (count($messageArray) > 0)
                 $return[] = [
@@ -483,7 +602,7 @@ class PhitomasController extends Controller
             ];
 
             $allSuccess = count($messageArray) == 0 ? $allSuccess : $allSuccess + 1;
-            $status = "Data error! Data not uploaded!";
+            
             $successObject[] = [
                 'Acct' => $Acct,
                 'AcctUnit1' => $AcctUnit1,
@@ -496,216 +615,266 @@ class PhitomasController extends Controller
                 'UM' => $UM,
             ];
             $validateCount++;
+            
         }
+        dd("asd");
         
         if ($allSuccess == 0) {
-            $isBatchExist = false;
-            $loadCollectionClient = new Client();
-            $loadCollectionIDO = 'SLMatltrans';
-            $loadCollectionProperties = 'DocumentNum, TransType, RefType';
-            $loadCollectionFilter = "DocumentNum = '" . $request->input('batch_id') . "' AND TransType= 'H' AND RefType = 'I'";
-            $validateBatchRes = $loadCollectionClient->request('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO . "?properties=" . $loadCollectionProperties . "&filter=" . $loadCollectionFilter, ['headers' => ['Authorization' => $tokenData]]);
-            $validateBatchResponse = json_decode($validateBatchRes->getBody()->getContents(), true);
+            $rowCount = 0;
+            for ($i = 0; $i < count($results); $i++) {
+                $rowCount++;
+                $messageArray = [];
+                $allSuccess = 0;
+                //load loc exist
+                $start_time = Carbon::now()->toDateTimeString();
+                $loadCollectionClient = new Client();
+                $loadCollectionIDO = 'SLItemLocs';
+                $loadCollectionProperties = 'Item, Loc';
+                $loadCollectionFilter = "Item = '" . $results[$i]['item'] . "' AND Loc = '" . $results[$i]['loc'] . "'";
+                $validateItemLocExistsRes = $loadCollectionClient->request('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO . "?properties=" . $loadCollectionProperties . "&filter=" . $loadCollectionFilter, ['headers' => ['Authorization' => $tokenData]]);
+                $validateItemLocExistsResponse = json_decode($validateItemLocExistsRes->getBody()->getContents(), true);
 
-            $isBatchExist = count($validateBatchResponse['Items']) > 0 ? true : false;
+                $end_time = Carbon::now()->toDateTimeString();
+                $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+                    [
+                        'batch_id' => $request->input('batch_id'),
+                        'row_no' => $rowCount,
+                        'method_name' => 'Check Loc Exist',
+                        'start_time' => $start_time,
+                        'end_time' => $end_time,
+                        'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+                    ]
+                );
 
-            if ($isBatchExist) {
-                $returnProcess = [];
-                $returnProcessAll = [];
-                $status = "Batch Number Exists";
-            } else {
-                for ($i = 0; $i < count($results); $i++) {
+                if (count($validateItemLocExistsResponse['Items']) == 0) {
+                    // invoke add location
+                    $start_time = Carbon::now()->toDateTimeString();
+                    $invokeClient = new Client();
+                    $invokeIDO = 'SLItemLocs';
+                    $invokeMethod = 'ItemLocAddSp';
+                    $invokeBody = [
+                        $results[$i]['whse'],
+                        $results[$i]['item'],
+                        $results[$i]['loc'],
+                        "1",
+                        "0",
+                        "0",
+                        "0",
+                        "0",
+                        "0",
+                        "0",
+                        "0",
+                        "",
+                        "",
+                        $results[$i]['perm_flag'],
+                    ];
+                    $validateAddLocRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
+                    $validateAddLocResponse = json_decode($validateAddLocRes->getBody()->getContents(), true);
 
-                    $messageArray = [];
-                    $allSuccess = 0;
-                    //filter item loc exist
-                    $loadCollectionClient = new Client();
-                    $loadCollectionIDO = 'SLItemLocs';
-                    $loadCollectionProperties = 'Item, Loc';
-                    $loadCollectionFilter = "Item = '" . $results[$i]['item'] . "' AND Loc = '" . $results[$i]['loc'] . "'";
-                    $validateItemLocExistsRes = $loadCollectionClient->request('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO . "?properties=" . $loadCollectionProperties . "&filter=" . $loadCollectionFilter, ['headers' => ['Authorization' => $tokenData]]);
-                    $validateItemLocExistsResponse = json_decode($validateItemLocExistsRes->getBody()->getContents(), true);
+                    if($validateAddLocResponse['ReturnValue'] != 0) array_push($messageArray, 'Add location error');
+                    $end_time = Carbon::now()->toDateTimeString();
+                    $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+                        [
+                            'batch_id' => $request->input('batch_id'),
+                            'row_no' => $rowCount,
+                            'method_name' => 'Invoke add location',
+                            'start_time' => $start_time,
+                            'end_time' => $end_time,
+                            'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+                        ]
+                    );
+                }
+                
 
-                    if (count($validateItemLocExistsResponse['Items']) == 0) {
-                        // validate add location
+                if ($successObject[$i]['LotTracked'] == 1) {
+
+                    // Invoke expand lot
+                    $start_time = Carbon::now()->toDateTimeString();
+                    if($LotGenExp == 1){
+                        $ExpandLotResult = '';
                         $invokeClient = new Client();
-                        $invokeIDO = 'SLItemLocs';
-                        $invokeMethod = 'ItemLocAddSp';
+                        $invokeIDO = 'SLPurchaseOrders';
+                        $invokeMethod = 'ExpandKyByTypeSp';
                         $invokeBody = [
-                            $results[$i]['whse'],
-                            $results[$i]['item'],
-                            $results[$i]['loc'],
-                            "1",
-                            "0",
-                            "0",
-                            "0",
-                            "0",
-                            "0",
-                            "0",
-                            "0",
+                            'LotType',
+                            $results[$i]['lot'],
+                            $config[0]->site,
                             "",
-                            "",
-                            $results[$i]['perm_flag'],
                         ];
-                        $validateAddLocRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
-                        $validateAddLocResponse = json_decode($validateAddLocRes->getBody()->getContents(), true);
-
-                        if($validateAddLocResponse['ReturnValue'] != 0) array_push($messageArray, 'Add location error');
+                        $validateExpandLotRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
+                        $validateExpandLotResponse = json_decode($validateExpandLotRes->getBody()->getContents(), true);
+                        if($validateExpandLotResponse['ReturnValue'] != 0){
+                            array_push($messageArray, 'Expand error');
+                        }else{
+                            $ExpandLotResult = $validateExpandLotResponse['Parameters'][3];
+                        }
                     }
+                    $end_time = Carbon::now()->toDateTimeString();
+                    $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+                        [
+                            'batch_id' => $request->input('batch_id'),
+                            'row_no' => $rowCount,
+                            'method_name' => 'Invoke expand lot',
+                            'start_time' => $start_time,
+                            'end_time' => $end_time,
+                            'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+                        ]
+                    );
+
+                    //load lot exists
+                    $start_time = Carbon::now()->toDateTimeString();
+                    $loadCollectionClient = new Client();
+                    $loadCollectionIDO = 'SLLots';
+                    $loadCollectionProperties = 'Item, Lot';
+                    $filteredLot = ($LotGenExp == 1 && $successObject[$i]['LotTracked'] == 1) ? $ExpandLotResult : $results[$i]['lot'];
+                    $loadCollectionFilter = "Item = '" . $results[$i]['item'] . "' AND Lot = '" .$filteredLot. "'";
+                    $validateCheckLotExistsRes = $loadCollectionClient->request('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO . "?properties=" . $loadCollectionProperties . "&filter=" . $loadCollectionFilter, ['headers' => ['Authorization' => $tokenData]]);
+                    $validateCheckLotExistsResponse = json_decode($validateCheckLotExistsRes->getBody()->getContents(), true);
+                    $end_time = Carbon::now()->toDateTimeString();
+                    $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+                        [
+                            'batch_id' => $request->input('batch_id'),
+                            'row_no' => $rowCount,
+                            'method_name' => 'Check lot exist',
+                            'start_time' => $start_time,
+                            'end_time' => $end_time,
+                            'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+                        ]
+                    );
                     
 
-                    if ($successObject[$i]['LotTracked'] == 1) {
-
-                        // validate expand lot
-                        // if LotGenExp == 1
-                        //ExpandKyByTypeSp 
-
-                        // DataType == LotType
-                        // Key == LotNum excel
-                        // Site == site config
-                        // Result => lotNumber to final process
-                        // if not equal 1, lot num from excel
-                        if($LotGenExp == 1){
-                            $ExpandLotResult = '';
-                            $invokeClient = new Client();
-                            $invokeIDO = 'SLPurchaseOrders';
-                            $invokeMethod = 'ExpandKyByTypeSp';
-                            $invokeBody = [
-                                'LotType',
-                                $results[$i]['lot'],
-                                $config[0]->site,
-                                "",
-                            ];
-                            $validateExpandLotRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
-                            $validateExpandLotResponse = json_decode($validateExpandLotRes->getBody()->getContents(), true);
-                            if($validateExpandLotResponse['ReturnValue'] != 0){
-                                array_push($messageArray, 'Expand error');
-                            }else{
-                                $ExpandLotResult = $validateExpandLotResponse['Parameters'][3];
-                            }
-                        }
-
-                        //filter check lot exists
-                        $loadCollectionClient = new Client();
-                        $loadCollectionIDO = 'SLLots';
-                        $loadCollectionProperties = 'Item, Lot';
-                        $filteredLot = ($LotGenExp == 1 && $successObject[$i]['LotTracked'] == 1) ? $ExpandLotResult : $results[$i]['lot'];
-                        $loadCollectionFilter = "Item = '" . $results[$i]['item'] . "' AND Lot = '" .$filteredLot. "'";
-                        $validateCheckLotExistsRes = $loadCollectionClient->request('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO . "?properties=" . $loadCollectionProperties . "&filter=" . $loadCollectionFilter, ['headers' => ['Authorization' => $tokenData]]);
-                        $validateCheckLotExistsResponse = json_decode($validateCheckLotExistsRes->getBody()->getContents(), true);
-                        
-
-                        if (count($validateCheckLotExistsResponse['Items']) == 0) {
-                            
-                            
-                            // validate add lot
-                            $invokeClient = new Client();
-                            $invokeIDO = 'SLLots';
-                            $invokeMethod = 'LotAddSp';
-                            $invokeBody = [
-                                $results[$i]['item'],
-                                ($LotGenExp == 1 && $successObject[$i]['LotTracked'] == 1) ? $ExpandLotResult : $results[$i]['lot'],
-                                "0",
-                                "",
-                                $results[$i]['vendor_lot'],
-                                "",
-                                "",
-                                "",
-                                $config[0]->site,
-                                "",
-                                $results[$i]['expired_date'],
-                                ""
-                            ];
-                            $validateAddLocRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
-                            $validateAddLotResponse = json_decode($validateAddLocRes->getBody()->getContents(), true);
-                            if($validateAddLotResponse['ReturnValue'] != 0 || $validateAddLotResponse['ReturnValue'] == null ){
-                                array_push($messageArray, $validateAddLotResponse['Message']);
-                            } 
-                        }
-                    }
-
-                    $allSuccess = count($messageArray) == 0 ? $allSuccess : $allSuccess + 1;
-                    if($allSuccess == 0){
-                        //final process
+                    if (count($validateCheckLotExistsResponse['Items']) == 0) {
+                        // invoke add lot
+                        $start_time = Carbon::now()->toDateTimeString();
                         $invokeClient = new Client();
-                        $invokeIDO = 'SLStockActItems';
-                        $invokeMethod = 'ItemMiscReceiptSp';
-                        
+                        $invokeIDO = 'SLLots';
+                        $invokeMethod = 'LotAddSp';
                         $invokeBody = [
                             $results[$i]['item'],
-                            $results[$i]['whse'],
-                            $results[$i]['qty_on_hand'],
-                            $successObject[$i]['UM'],
-                            $costObject[$i]['MatlCost'],
-                            $costObject[$i]['LbrCost'],
-                            $costObject[$i]['FovhdCost'],
-                            $costObject[$i]['VovhdCost'],
-                            $costObject[$i]['OutCost'],
-                            $costObject[$i]['UnitCost'],
-                            $results[$i]['loc'],
                             ($LotGenExp == 1 && $successObject[$i]['LotTracked'] == 1) ? $ExpandLotResult : $results[$i]['lot'],
-                            $results[$i]['reason_code'],
-                            $successObject[$i]['Acct'],
-                            $successObject[$i]['AcctUnit1'],
-                            $successObject[$i]['AcctUnit2'],
-                            $successObject[$i]['AcctUnit3'],
-                            $successObject[$i]['AcctUnit4'],
-                            $results[$i]['trans_date'],
+                            "0",
                             "",
-                            $request->input('batch_id'), //document_num <= 12 character
-                            "", //ImportDocId
+                            $results[$i]['vendor_lot'],
                             "",
                             "",
-                            // ""
+                            "",
+                            $config[0]->site,
+                            "",
+                            $results[$i]['expired_date'],
+                            ""
                         ];
+                        $validateAddLocRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody]);
+                        $validateAddLotResponse = json_decode($validateAddLocRes->getBody()->getContents(), true);
+                        if($validateAddLotResponse['ReturnValue'] != 0 || $validateAddLotResponse['ReturnValue'] == null ){
+                            array_push($messageArray, $validateAddLotResponse['Message']);
+                        } 
+                        $end_time = Carbon::now()->toDateTimeString();
+                        $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+                            [
+                                'batch_id' => $request->input('batch_id'),
+                                'row_no' => $rowCount,
+                                'method_name' => 'Check lot exist',
+                                'start_time' => $start_time,
+                                'end_time' => $end_time,
+                                'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+                            ]
+                        );
+                    }
+                }
 
-                        $validateFinalProcessRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' =>     $invokeBody]);
-                        $validateFinalProcessResponse = json_decode($validateFinalProcessRes->getBody()->getContents(), true);
+                $allSuccess = count($messageArray) == 0 ? $allSuccess : $allSuccess + 1;
+                if($allSuccess == 0){
+                    //final process
+                    $start_time = Carbon::now()->toDateTimeString();
+                    $invokeClient = new Client();
+                    $invokeIDO = 'SLStockActItems';
+                    $invokeMethod = 'ItemMiscReceiptSp';
+                    
+                    $invokeBody = [
+                        $results[$i]['item'],
+                        $results[$i]['whse'],
+                        $results[$i]['qty_on_hand'],
+                        $successObject[$i]['UM'],
+                        $costObject[$i]['MatlCost'],
+                        $costObject[$i]['LbrCost'],
+                        $costObject[$i]['FovhdCost'],
+                        $costObject[$i]['VovhdCost'],
+                        $costObject[$i]['OutCost'],
+                        $costObject[$i]['UnitCost'],
+                        $results[$i]['loc'],
+                        ($LotGenExp == 1 && $successObject[$i]['LotTracked'] == 1) ? $ExpandLotResult : $results[$i]['lot'],
+                        $results[$i]['reason_code'],
+                        $successObject[$i]['Acct'],
+                        $successObject[$i]['AcctUnit1'],
+                        $successObject[$i]['AcctUnit2'],
+                        $successObject[$i]['AcctUnit3'],
+                        $successObject[$i]['AcctUnit4'],
+                        $results[$i]['trans_date'],
+                        "",
+                        $request->input('batch_id'), //document_num <= 12 character
+                        "", //ImportDocId
+                        "",
+                        "",
+                        // ""
+                    ];
 
-                        if ($validateFinalProcessResponse['ReturnValue'] != 0 || $validateFinalProcessResponse['ReturnValue'] == null) {
-                            $errorMessage = $validateFinalProcessResponse['Message'];
-                            array_push($messageArray, $errorMessage);
-                        } else {
-                            // $errorMessage = $validateFinalProcessResponse['Message'] == null ? "" : $validateFinalProcessResponse['Message'];
-                            // array_push($messageArray, $errorMessage);
-                        }
-                        $allSuccess = count($messageArray) == 0 ? $allSuccess : $allSuccess + 1;
-                        if($allSuccess == 0){
-                            $status = "Data inserted!";
-                        } else {
-                            $status = "Error";
-                        }
+                    $validateFinalProcessRes = $invokeClient->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' =>     $invokeBody]);
+                    $validateFinalProcessResponse = json_decode($validateFinalProcessRes->getBody()->getContents(), true);
+
+                    if ($validateFinalProcessResponse['ReturnValue'] != 0 || $validateFinalProcessResponse['ReturnValue'] == null) {
+                        $errorMessage = $validateFinalProcessResponse['Message'];
+                        array_push($messageArray, $errorMessage);
+                    } else {
+
+                    }
+                    $end_time = Carbon::now()->toDateTimeString();
+                    $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+                        [
+                            'batch_id' => $request->input('batch_id'),
+                            'row_no' => $rowCount,
+                            'method_name' => 'Final process',
+                            'start_time' => $start_time,
+                            'end_time' => $end_time,
+                            'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+                        ]
+                    );
+                    $allSuccess = count($messageArray) == 0 ? $allSuccess : $allSuccess + 1;
+                    if($allSuccess == 0){
+                        $status = "Data inserted!";
                     } else {
                         $status = "Error";
                     }
-
-                    $returnProcess[] = [
-                        'Item' => $results[$i]['item'],
-                        'Message' => $messageArray
-                    ];
-                    $returnProcessAll[] = [
-                        'Trans Date' => $results[$i]['trans_date'],
-                        'Item' => $results[$i]['item'],
-                        'Whse' => $results[$i]['whse'],
-                        'Loc' => $results[$i]['loc'],
-                        'Lot' => $results[$i]['lot'],
-                        'Qty on Hand' => $results[$i]['qty_on_hand'],
-                        'Expired Date' => $results[$i]['expired_date'],
-                        'Vendor Lot' => $results[$i]['vendor_lot'],
-                        'Reason Code' => $results[$i]['reason_code'],
-                        'Perm Flag' => $results[$i]['perm_flag'],
-                        'Matl Cost' => $results[$i]['matl_cost'],
-                        'Lbr Cost' => $results[$i]['lbr_cost'],
-                        'Fovhd Cost' => $results[$i]['fovhd_cost'],
-                        'Vovhd Cost' => $results[$i]['vovhd_cost'],
-                        'Out Cost' => $results[$i]['out_cost'],
-                        'Document Num' => $request->input('batch_id'),
-                        'Importdoc Id' => $results[$i]['importdoc_id'],
-                        'Notes' => $results[$i]['notes'],
-                        'Message' => $messageArray
-                    ];
+                } else {
+                    $status = "Error";
                 }
+
+                $returnProcess[] = [
+                    'Item' => $results[$i]['item'],
+                    'Message' => $messageArray
+                ];
+                $returnProcessAll[] = [
+                    'Trans Date' => $results[$i]['trans_date'],
+                    'Item' => $results[$i]['item'],
+                    'Whse' => $results[$i]['whse'],
+                    'Loc' => $results[$i]['loc'],
+                    'Lot' => $results[$i]['lot'],
+                    'Qty on Hand' => $results[$i]['qty_on_hand'],
+                    'Expired Date' => $results[$i]['expired_date'],
+                    'Vendor Lot' => $results[$i]['vendor_lot'],
+                    'Reason Code' => $results[$i]['reason_code'],
+                    'Perm Flag' => $results[$i]['perm_flag'],
+                    'Matl Cost' => $results[$i]['matl_cost'],
+                    'Lbr Cost' => $results[$i]['lbr_cost'],
+                    'Fovhd Cost' => $results[$i]['fovhd_cost'],
+                    'Vovhd Cost' => $results[$i]['vovhd_cost'],
+                    'Out Cost' => $results[$i]['out_cost'],
+                    'Document Num' => $request->input('batch_id'),
+                    'Importdoc Id' => $results[$i]['importdoc_id'],
+                    'Notes' => $results[$i]['notes'],
+                    'Message' => $messageArray
+                ];
             }
+            
 
             // $returnMessage["Detail"] = $returnProcess;
             $returnMessage = [
@@ -715,6 +884,7 @@ class PhitomasController extends Controller
             ];
             return $returnMessage;
         } else {
+            $status = "Data error! Data not uploaded!";
             $returnMessage = [
                 "Status" => $status,
                 "Detail" => $return,
@@ -742,7 +912,7 @@ class PhitomasController extends Controller
         $tokenData = json_decode($token->getBody()->getContents(), true)['Token'];
         if ($request->input('to_currency') == "" && $request->input('from_currency') != "") {
             $to_currency = DB::select("
-            select map_curr_c   ode, curr_code
+            select map_curr_code, curr_code
             from(
             select ROW_NUMBER ( ) OVER ( order by curr_code asc) as row_id, * from ILNT_CurrencyMap_mst ) AS  a 
             where row_id >= (
@@ -782,7 +952,6 @@ class PhitomasController extends Controller
         foreach ($to_currency as $data) {
             $client = new Client(['headers' => ['Accept' => 'application/vnd.BNM.API.v1+json']]);
             $quote = 'rm';
-            // dd('https://api.bnm.gov.my/public/exchange-rate/' . $data->map_curr_code . '/date/' . $request->date . '?session=0900&quote=' . $quote);
             $res = $client->get('https://api.bnm.gov.my/public/exchange-rate/' . $data->map_curr_code . '/date/' . $request->date . '?session=0900&quote=' . $quote);
             ;
             $bnmData = $res->getBody()->getContents();
