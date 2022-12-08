@@ -12,6 +12,15 @@ use function GuzzleHttp\Promise\all;
 
 class PhitomasController extends Controller
 {
+    public function dataMigratioonLog(){
+
+        $log = DB::connection('mysql')->select("select row_id, batch_id, row_no, method_name, start_time, case WHEN end_time is null then '' else end_time end as end_time, case WHEN process_duration is null then '' else process_duration end as process_duration from inventory_data_migration_log where batch_id = (
+            select batch_id from inventory_data_migration_log order by row_id desc limit 1
+            ) order by row_id desc;");
+
+        return $log;
+    }
+
     public function batchDeleteConfig(Request $request)
     {
 

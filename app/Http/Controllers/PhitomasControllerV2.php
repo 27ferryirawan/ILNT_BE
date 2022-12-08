@@ -12,9 +12,7 @@ use function GuzzleHttp\Promise\all;
 
 class PhitomasControllerV2 extends Controller
 {
-
-    public function inventoryDataMigration(Request $request)
-    {
+    public function inventoryDataMigration(Request $request){
         $config = DB::connection('mysql')->select("select * from config where row_id =" . $request->input('config_id'));
         
         $tokenClient = new Client();
@@ -59,7 +57,19 @@ class PhitomasControllerV2 extends Controller
         $results = $reader->get()->toArray();
         // dd($results);
 
-        for ($i = 0; $i < count($results); $i=$i+$request->loop_count) {
+        $isLoopIn = $request->input('loop_count');
+        $start_time = Carbon::now()->toDateTimeString();
+        $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+            [
+                'batch_id' => $request->input('batch_id'),
+                'row_no' => -1,
+                'method_name' => 'Validation',
+                'start_time' => $start_time,
+                // 'end_time' => $end_time,
+                // 'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+            ]
+        );
+        for ($i = 0; $i < count($results); $i=$i+$request->input('loop_count')) {
             // Invoke trans date
             //0
             $invokeIDO1 = 'SLPeriods';
@@ -441,166 +451,493 @@ class PhitomasControllerV2 extends Controller
 
             $client = new Client();
             
-            $responses[] = all([
-                //data 1
-                //0
-                "InvokeTransDate" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO1 . "?method=" . $invokeMethod1 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody1]),
-                //1
-                "LoadItem" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO2 . "?properties=" . $loadCollectionProperties2 . "&filter=" . $loadCollectionFilter2, ['headers' => ['Authorization' => $tokenData]]),
-                //2
-                "LoadWhse" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO3 . "?properties=" . $loadCollectionProperties3 . "&filter=" . $loadCollectionFilter3, ['headers' => ['Authorization' => $tokenData]]),
-                //3
-                "LoadLoc" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO4 . "?properties=" . $loadCollectionProperties4 . "&filter=" . $loadCollectionFilter4, ['headers' => ['Authorization' => $tokenData]]),
-                //4
-                "LoadReason" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO5 . "?properties=" . $loadCollectionProperties5 . "&filter=" . $loadCollectionFilter5, ['headers' => ['Authorization' => $tokenData]]),
-                //5
-                "InvokeReason" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO6 . "?method=" . $invokeMethod6 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody6]),
-                //6
-                "InvokePhysicalCount" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO7 . "?method=" . $invokeMethod7 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody7]),
-                //7
-                "InvokeObsoleteItem" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO8 . "?method=" . $invokeMethod8 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody8]),
-                //8
-                "InvokeDefaultCost" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO9 . "?method=" . $invokeMethod9 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody9]),
+            if(count($results)%5 == 0 && $isLoopIn == 5){
+                $responses[] = all([
+                    //data 1
+                    //0
+                    "InvokeTransDate" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO1 . "?method=" . $invokeMethod1 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody1]),
+                    //1
+                    "LoadItem" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO2 . "?properties=" . $loadCollectionProperties2 . "&filter=" . $loadCollectionFilter2, ['headers' => ['Authorization' => $tokenData]]),
+                    //2
+                    "LoadWhse" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO3 . "?properties=" . $loadCollectionProperties3 . "&filter=" . $loadCollectionFilter3, ['headers' => ['Authorization' => $tokenData]]),
+                    //3
+                    "LoadLoc" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO4 . "?properties=" . $loadCollectionProperties4 . "&filter=" . $loadCollectionFilter4, ['headers' => ['Authorization' => $tokenData]]),
+                    //4
+                    "LoadReason" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO5 . "?properties=" . $loadCollectionProperties5 . "&filter=" . $loadCollectionFilter5, ['headers' => ['Authorization' => $tokenData]]),
+                    //5
+                    "InvokeReason" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO6 . "?method=" . $invokeMethod6 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody6]),
+                    //6
+                    "InvokePhysicalCount" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO7 . "?method=" . $invokeMethod7 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody7]),
+                    //7
+                    "InvokeObsoleteItem" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO8 . "?method=" . $invokeMethod8 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody8]),
+                    //8
+                    "InvokeDefaultCost" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO9 . "?method=" . $invokeMethod9 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody9]),
 
-                //data 2
-                "InvokeTransDate1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody11]),
+                    //data 2
+                    "InvokeTransDate1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody11]),
 
-                "LoadItem1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter21, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadItem1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter21, ['headers' => ['Authorization' => $tokenData]]),
 
-                "LoadWhse1" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter31, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadWhse1" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter31, ['headers' => ['Authorization' => $tokenData]]),
 
-                "LoadLoc1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter41, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadLoc1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter41, ['headers' => ['Authorization' => $tokenData]]),
 
-                "LoadReason1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter51, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadReason1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter51, ['headers' => ['Authorization' => $tokenData]]),
 
-                "InvokeReason1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody61]),
+                    "InvokeReason1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody61]),
 
-                "InvokePhysicalCount1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody71]),
+                    "InvokePhysicalCount1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody71]),
 
-                "InvokeObsoleteItem1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody81]),
+                    "InvokeObsoleteItem1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody81]),
 
-                "InvokeDefaultCost1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody91]),
+                    "InvokeDefaultCost1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody91]),
 
-                //data 3
-                "InvokeTransDate2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody12]),
+                    //data 3
+                    "InvokeTransDate2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody12]),
 
-                "LoadItem2" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter22, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadItem2" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter22, ['headers' => ['Authorization' => $tokenData]]),
 
-                "LoadWhse2" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter32, ['headers' => ['Authorization' => $tokenData]]),
-                
-                "LoadLoc2" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter42, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadWhse2" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter32, ['headers' => ['Authorization' => $tokenData]]),
+                    
+                    "LoadLoc2" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter42, ['headers' => ['Authorization' => $tokenData]]),
 
-                "LoadReason2" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter52, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadReason2" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter52, ['headers' => ['Authorization' => $tokenData]]),
 
-                "InvokeReason2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody62]),
+                    "InvokeReason2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody62]),
 
-                "InvokePhysicalCount2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody72]),
+                    "InvokePhysicalCount2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody72]),
 
-                "InvokeObsoleteItem2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody82]),
+                    "InvokeObsoleteItem2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody82]),
 
-                "InvokeDefaultCost2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody92]),
+                    "InvokeDefaultCost2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody92]),
 
-                //data 4
-                "InvokeTransDate3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody13]),
+                    //data 4
+                    "InvokeTransDate3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody13]),
 
-                "LoadItem3" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter23, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadItem3" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter23, ['headers' => ['Authorization' => $tokenData]]),
 
-                "LoadWhse3" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter33, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadWhse3" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter33, ['headers' => ['Authorization' => $tokenData]]),
 
-                "LoadLoc3" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter43, ['headers' => ['Authorization' => $tokenData]]),
-                
-                "LoadReason3" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter53, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadLoc3" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter43, ['headers' => ['Authorization' => $tokenData]]),
+                    
+                    "LoadReason3" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter53, ['headers' => ['Authorization' => $tokenData]]),
 
-                "InvokeReason3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody63]),
+                    "InvokeReason3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody63]),
 
-                "InvokePhysicalCount3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody73]),
+                    "InvokePhysicalCount3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody73]),
 
-                "InvokeObsoleteItem3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody83]),
+                    "InvokeObsoleteItem3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody83]),
 
-                "InvokeDefaultCost3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody93]),
+                    "InvokeDefaultCost3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody93]),
 
-                //data 5
-                "InvokeTransDate4" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody14]),
+                    //data 5
+                    "InvokeTransDate4" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody14]),
 
-                "LoadItem4" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter24, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadItem4" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter24, ['headers' => ['Authorization' => $tokenData]]),
 
-                "LoadWhse4" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter34, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadWhse4" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter34, ['headers' => ['Authorization' => $tokenData]]),
 
-                "LoadLoc4" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter44, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadLoc4" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter44, ['headers' => ['Authorization' => $tokenData]]),
 
-                "LoadReason4" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter54, ['headers' => ['Authorization' => $tokenData]]),
+                    "LoadReason4" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter54, ['headers' => ['Authorization' => $tokenData]]),
 
-                "InvokeReason4" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody64]),
+                    "InvokeReason4" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody64]),
 
-                "InvokePhysicalCount4" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody74]),
-                
-                "InvokeObsoleteItem4" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody84]),
+                    "InvokePhysicalCount4" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody74]),
+                    
+                    "InvokeObsoleteItem4" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody84]),
 
-                "InvokeDefaultCost4" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody94]),
-            ]);
+                    "InvokeDefaultCost4" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody94]),
+                ]);
+            } else if(count($results)%4 == 0 && $isLoopIn == 4){
+                $responses[] = all([
+                    //data 1
+                    //0
+                    "InvokeTransDate" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO1 . "?method=" . $invokeMethod1 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody1]),
+                    //1
+                    "LoadItem" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO2 . "?properties=" . $loadCollectionProperties2 . "&filter=" . $loadCollectionFilter2, ['headers' => ['Authorization' => $tokenData]]),
+                    //2
+                    "LoadWhse" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO3 . "?properties=" . $loadCollectionProperties3 . "&filter=" . $loadCollectionFilter3, ['headers' => ['Authorization' => $tokenData]]),
+                    //3
+                    "LoadLoc" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO4 . "?properties=" . $loadCollectionProperties4 . "&filter=" . $loadCollectionFilter4, ['headers' => ['Authorization' => $tokenData]]),
+                    //4
+                    "LoadReason" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO5 . "?properties=" . $loadCollectionProperties5 . "&filter=" . $loadCollectionFilter5, ['headers' => ['Authorization' => $tokenData]]),
+                    //5
+                    "InvokeReason" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO6 . "?method=" . $invokeMethod6 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody6]),
+                    //6
+                    "InvokePhysicalCount" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO7 . "?method=" . $invokeMethod7 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody7]),
+                    //7
+                    "InvokeObsoleteItem" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO8 . "?method=" . $invokeMethod8 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody8]),
+                    //8
+                    "InvokeDefaultCost" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO9 . "?method=" . $invokeMethod9 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody9]),
+
+                    //data 2
+                    "InvokeTransDate1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody11]),
+
+                    "LoadItem1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter21, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadWhse1" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter31, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadLoc1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter41, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadReason1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter51, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "InvokeReason1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody61]),
+
+                    "InvokePhysicalCount1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody71]),
+
+                    "InvokeObsoleteItem1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody81]),
+
+                    "InvokeDefaultCost1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody91]),
+
+                    //data 3
+                    "InvokeTransDate2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody12]),
+
+                    "LoadItem2" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter22, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadWhse2" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter32, ['headers' => ['Authorization' => $tokenData]]),
+                    
+                    "LoadLoc2" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter42, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadReason2" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter52, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "InvokeReason2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody62]),
+
+                    "InvokePhysicalCount2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody72]),
+
+                    "InvokeObsoleteItem2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody82]),
+
+                    "InvokeDefaultCost2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody92]),
+
+                    //data 4
+                    "InvokeTransDate3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody13]),
+
+                    "LoadItem3" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter23, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadWhse3" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter33, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadLoc3" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter43, ['headers' => ['Authorization' => $tokenData]]),
+                    
+                    "LoadReason3" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter53, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "InvokeReason3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody63]),
+
+                    "InvokePhysicalCount3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody73]),
+
+                    "InvokeObsoleteItem3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody83]),
+
+                    "InvokeDefaultCost3" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody93]),
+                ]);
+            } else if(count($results)%3 == 0 && $isLoopIn == 3){
+                $responses[] = all([
+                    //data 1
+                    //0
+                    "InvokeTransDate" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO1 . "?method=" . $invokeMethod1 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody1]),
+                    //1
+                    "LoadItem" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO2 . "?properties=" . $loadCollectionProperties2 . "&filter=" . $loadCollectionFilter2, ['headers' => ['Authorization' => $tokenData]]),
+                    //2
+                    "LoadWhse" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO3 . "?properties=" . $loadCollectionProperties3 . "&filter=" . $loadCollectionFilter3, ['headers' => ['Authorization' => $tokenData]]),
+                    //3
+                    "LoadLoc" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO4 . "?properties=" . $loadCollectionProperties4 . "&filter=" . $loadCollectionFilter4, ['headers' => ['Authorization' => $tokenData]]),
+                    //4
+                    "LoadReason" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO5 . "?properties=" . $loadCollectionProperties5 . "&filter=" . $loadCollectionFilter5, ['headers' => ['Authorization' => $tokenData]]),
+                    //5
+                    "InvokeReason" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO6 . "?method=" . $invokeMethod6 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody6]),
+                    //6
+                    "InvokePhysicalCount" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO7 . "?method=" . $invokeMethod7 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody7]),
+                    //7
+                    "InvokeObsoleteItem" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO8 . "?method=" . $invokeMethod8 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody8]),
+                    //8
+                    "InvokeDefaultCost" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO9 . "?method=" . $invokeMethod9 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody9]),
+
+                    //data 2
+                    "InvokeTransDate1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody11]),
+
+                    "LoadItem1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter21, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadWhse1" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter31, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadLoc1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter41, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadReason1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter51, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "InvokeReason1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody61]),
+
+                    "InvokePhysicalCount1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody71]),
+
+                    "InvokeObsoleteItem1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody81]),
+
+                    "InvokeDefaultCost1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody91]),
+
+                    //data 3
+                    "InvokeTransDate2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody12]),
+
+                    "LoadItem2" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter22, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadWhse2" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter32, ['headers' => ['Authorization' => $tokenData]]),
+                    
+                    "LoadLoc2" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter42, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadReason2" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter52, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "InvokeReason2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody62]),
+
+                    "InvokePhysicalCount2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody72]),
+
+                    "InvokeObsoleteItem2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody82]),
+
+                    "InvokeDefaultCost2" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody92]),
+                ]);
+            } else if(count($results)%2 == 0 && $isLoopIn == 2){
+                $responses[] = all([
+                    //data 1
+                    //0
+                    "InvokeTransDate" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO1 . "?method=" . $invokeMethod1 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody1]),
+                    //1
+                    "LoadItem" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO2 . "?properties=" . $loadCollectionProperties2 . "&filter=" . $loadCollectionFilter2, ['headers' => ['Authorization' => $tokenData]]),
+                    //2
+                    "LoadWhse" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO3 . "?properties=" . $loadCollectionProperties3 . "&filter=" . $loadCollectionFilter3, ['headers' => ['Authorization' => $tokenData]]),
+                    //3
+                    "LoadLoc" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO4 . "?properties=" . $loadCollectionProperties4 . "&filter=" . $loadCollectionFilter4, ['headers' => ['Authorization' => $tokenData]]),
+                    //4
+                    "LoadReason" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO5 . "?properties=" . $loadCollectionProperties5 . "&filter=" . $loadCollectionFilter5, ['headers' => ['Authorization' => $tokenData]]),
+                    //5
+                    "InvokeReason" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO6 . "?method=" . $invokeMethod6 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody6]),
+                    //6
+                    "InvokePhysicalCount" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO7 . "?method=" . $invokeMethod7 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody7]),
+                    //7
+                    "InvokeObsoleteItem" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO8 . "?method=" . $invokeMethod8 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody8]),
+                    //8
+                    "InvokeDefaultCost" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO9 . "?method=" . $invokeMethod9 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody9]),
+
+                    //data 2
+                    "InvokeTransDate1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO1 . '?method=' . $invokeMethod1 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody11]),
+
+                    "LoadItem1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO2 . '?properties=' . $loadCollectionProperties2 . '&filter=' . $loadCollectionFilter21, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadWhse1" =>$client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO3 . '?properties=' . $loadCollectionProperties3 . '&filter=' . $loadCollectionFilter31, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadLoc1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO4 . '?properties=' . $loadCollectionProperties4 . '&filter=' . $loadCollectionFilter41, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "LoadReason1" => $client->requestAsync('GET', $config[0]->url . '/ido/load/' . $loadCollectionIDO5 . '?properties=' . $loadCollectionProperties5 . '&filter=' . $loadCollectionFilter51, ['headers' => ['Authorization' => $tokenData]]),
+
+                    "InvokeReason1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO6 . '?method=' . $invokeMethod6 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody61]),
+
+                    "InvokePhysicalCount1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO7 . '?method=' . $invokeMethod7 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody71]),
+
+                    "InvokeObsoleteItem1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody81]),
+
+                    "InvokeDefaultCost1" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody91]),
+                ]);
+            }  else if(count($results)%1 == 0 && $isLoopIn == 1){
+                $responses[] = all([
+                    //data 1
+                    //0
+                    "InvokeTransDate" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO1 . "?method=" . $invokeMethod1 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody1]),
+                    //1
+                    "LoadItem" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO2 . "?properties=" . $loadCollectionProperties2 . "&filter=" . $loadCollectionFilter2, ['headers' => ['Authorization' => $tokenData]]),
+                    //2
+                    "LoadWhse" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO3 . "?properties=" . $loadCollectionProperties3 . "&filter=" . $loadCollectionFilter3, ['headers' => ['Authorization' => $tokenData]]),
+                    //3
+                    "LoadLoc" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO4 . "?properties=" . $loadCollectionProperties4 . "&filter=" . $loadCollectionFilter4, ['headers' => ['Authorization' => $tokenData]]),
+                    //4
+                    "LoadReason" => $client->requestAsync('GET', $config[0]->url . "/ido/load/" . $loadCollectionIDO5 . "?properties=" . $loadCollectionProperties5 . "&filter=" . $loadCollectionFilter5, ['headers' => ['Authorization' => $tokenData]]),
+                    //5
+                    "InvokeReason" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO6 . "?method=" . $invokeMethod6 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody6]),
+                    //6
+                    "InvokePhysicalCount" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO7 . "?method=" . $invokeMethod7 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody7]),
+                    //7
+                    "InvokeObsoleteItem" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO8 . "?method=" . $invokeMethod8 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody8]),
+                    //8
+                    "InvokeDefaultCost" => $client->requestAsync('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO9 . "?method=" . $invokeMethod9 . "", ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody9]),
+                ]);
+            }
         }
         $responseData = [];
         $rowResponseData = [];
         $promiseResults = all($responses)->wait();
-
         for ($i = 0; $i < count($promiseResults); $i++) {
-            array_push($responseData, 
-                [
-                    json_decode($promiseResults[$i]['InvokeTransDate']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadItem']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadWhse']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadLoc']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadReason']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeReason']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokePhysicalCount']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeObsoleteItem']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeDefaultCost']->getBody()->getContents(), true),
-                ],
-                [
-                    json_decode($promiseResults[$i]['InvokeTransDate1']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadItem1']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadWhse1']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadLoc1']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadReason1']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeReason1']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokePhysicalCount1']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeObsoleteItem1']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeDefaultCost1']->getBody()->getContents(), true),
-                ],
-                [
-                    json_decode($promiseResults[$i]['InvokeTransDate2']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadItem2']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadWhse2']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadLoc2']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadReason2']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeReason2']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokePhysicalCount2']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeObsoleteItem2']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeDefaultCost2']->getBody()->getContents(), true),
-                ],
-                [
-                    json_decode($promiseResults[$i]['InvokeTransDate3']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadItem3']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadWhse3']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadLoc3']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadReason3']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeReason3']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokePhysicalCount3']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeObsoleteItem3']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeDefaultCost3']->getBody()->getContents(), true),
-                ],
-                [
-                    json_decode($promiseResults[$i]['InvokeTransDate4']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadItem4']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadWhse4']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadLoc4']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['LoadReason4']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeReason4']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokePhysicalCount4']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeObsoleteItem4']->getBody()->getContents(), true),
-                    json_decode($promiseResults[$i]['InvokeDefaultCost4']->getBody()->getContents(), true),
-                ]
-            );
+            if(count($results)%5 == 0 && $isLoopIn == 5){
+                array_push($responseData, 
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost']->getBody()->getContents(), true),
+                    ],
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost1']->getBody()->getContents(), true),
+                    ],
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost2']->getBody()->getContents(), true),
+                    ],
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost3']->getBody()->getContents(), true),
+                    ],
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate4']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem4']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse4']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc4']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason4']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason4']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount4']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem4']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost4']->getBody()->getContents(), true),
+                    ]
+                );
+            } else if(count($results)%4 == 0 && $isLoopIn == 4){
+                array_push($responseData, 
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost']->getBody()->getContents(), true),
+                    ],
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost1']->getBody()->getContents(), true),
+                    ],
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost2']->getBody()->getContents(), true),
+                    ],
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem3']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost3']->getBody()->getContents(), true),
+                    ]
+                );
+            } else if(count($results)%3 == 0 && $isLoopIn == 3){
+                array_push($responseData, 
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost']->getBody()->getContents(), true),
+                    ],
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost1']->getBody()->getContents(), true),
+                    ],
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem2']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost2']->getBody()->getContents(), true),
+                    ]
+                );
+            } else if(count($results)%2 == 0 && $isLoopIn == 2){
+                array_push($responseData, 
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost']->getBody()->getContents(), true),
+                    ],
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem1']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost1']->getBody()->getContents(), true),
+                    ]
+                );
+            } else if(count($results)%1 == 0 && $isLoopIn == 1){
+                array_push($responseData, 
+                    [
+                        json_decode($promiseResults[$i]['InvokeTransDate']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadItem']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadWhse']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadLoc']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['LoadReason']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeReason']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokePhysicalCount']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeObsoleteItem']->getBody()->getContents(), true),
+                        json_decode($promiseResults[$i]['InvokeDefaultCost']->getBody()->getContents(), true),
+                    ]
+                );
+            }
         }
         $rowResponseData = $responseData;
         
@@ -751,9 +1088,33 @@ class PhitomasControllerV2 extends Controller
                 'UM' => $UM,
             ];
         }
+        $end_time = Carbon::now()->toDateTimeString();
+        $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+            [
+                'batch_id' => $request->input('batch_id'),
+                'row_no' => -1,
+                'method_name' => 'Validation',
+                'start_time' => $start_time,
+                'end_time' => $end_time,
+                'process_duration' => gmdate("H:i:s", (strtotime($end_time) - strtotime($start_time))),
+            ]
+        );
 
         if ($allSuccess == 0) {
             for ($i = 0; $i < count($results); $i++) {
+                $start_time1 = Carbon::now()->toDateTimeString();
+                $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+                    [
+                        'batch_id' => $request->input('batch_id'),
+                        'row_no' => $i+1,
+                        'method_name' => 'Insert',
+                        'start_time' => $start_time1,
+                        // 'end_time' => $end_time1,
+                        // 'process_duration' => gmdate("H:i:s", (strtotime($end_time1) - strtotime($start_time1))),
+                    ]
+                );
+
+
                 $messageArray = [];
                 $allSuccess = 0;
                 
@@ -882,7 +1243,17 @@ class PhitomasControllerV2 extends Controller
 
                     $validateFinalProcessRes = $client->request('POST', $config[0]->url . "/ido/invoke/" . $invokeIDO . "?method=" . $invokeMethod . "", ['headers' => ['Authorization' => $tokenData], 'json' =>     $invokeBody]);
                     $validateFinalProcessResponse = json_decode($validateFinalProcessRes->getBody()->getContents(), true);
-
+                    $end_time1 = Carbon::now()->toDateTimeString();
+                    $time = DB::connection('mysql')->table('inventory_data_migration_log')->insertGetId(
+                        [
+                            'batch_id' => $request->input('batch_id'),
+                            'row_no' => $i+1,
+                            'method_name' => 'Insert',
+                            'start_time' => $start_time1,
+                            'end_time' => $end_time1,
+                            'process_duration' => gmdate("H:i:s", (strtotime($end_time1) - strtotime($start_time1))),
+                        ]
+                    );
                     if ($validateFinalProcessResponse['ReturnValue'] != 0 || $validateFinalProcessResponse['ReturnValue'] == null) {
                         $errorMessage = $validateFinalProcessResponse['Message'];
                         array_push($messageArray, $errorMessage);
