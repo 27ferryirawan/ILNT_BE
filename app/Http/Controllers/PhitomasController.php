@@ -81,7 +81,7 @@ class PhitomasController extends Controller
 
     public function readConfig()
     {
-        $config = DB::connection('mysql')->select("select *,CONCAT(site, ', ', config_name, ', ',url) as config_detail from config");
+        $config = DB::connection('mysql')->select("select *,CONCAT(site, ', ', config_name, ', ', url, ', ', username, ', ', password) as config_detail from config");
 
         return $config;
     }
