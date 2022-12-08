@@ -9,8 +9,6 @@ use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
 use DateTime;
 use function GuzzleHttp\Promise\all;
-use GuzzleHttp\Promise;
-use Guzzle\Common\Exception\MultiTransferException;
 
 class PhitomasControllerV2 extends Controller
 {
@@ -18,6 +16,7 @@ class PhitomasControllerV2 extends Controller
     public function inventoryDataMigration(Request $request)
     {
         $config = DB::connection('mysql')->select("select * from config where row_id =" . $request->input('config_id'));
+        
         $tokenClient = new Client();
         $token = $tokenClient->get($config[0]->url . "/ido/token/" . $config[0]->config_name . "/" . $config[0]->username . "/" . $config[0]->password);
         $tokenData = json_decode($token->getBody()->getContents(), true)['Token'];
@@ -60,7 +59,7 @@ class PhitomasControllerV2 extends Controller
         $results = $reader->get()->toArray();
         // dd($results);
 
-        for ($i = 0; $i < count( $results); $i=$i+5) {
+        for ($i = 0; $i < count($results); $i=$i+$request->loop_count) {
             // Invoke trans date
             //0
             $invokeIDO1 = 'SLPeriods';
@@ -538,8 +537,6 @@ class PhitomasControllerV2 extends Controller
                 "InvokeObsoleteItem4" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO8 . '?method=' . $invokeMethod8 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody84]),
 
                 "InvokeDefaultCost4" => $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody94]),
-                
-                $client->requestAsync('POST', $config[0]->url . '/ido/invoke/' . $invokeIDO9 . '?method=' . $invokeMethod9 . '', ['headers' => ['Authorization' => $tokenData], 'json' => $invokeBody94]),
             ]);
         }
         $responseData = [];

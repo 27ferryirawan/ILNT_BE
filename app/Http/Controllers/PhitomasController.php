@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
 use DateTime;
-use Illuminate\Support\Facades\Http;
+use function GuzzleHttp\Promise\all;
 
 class PhitomasController extends Controller
 {
