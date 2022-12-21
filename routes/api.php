@@ -33,17 +33,5 @@ Route::post('/inventory-data-migration', 'PhitomasController@inventoryDataMigrat
 Route::get('/inventory-data-migration-log', 'PhitomasController@dataMigratioonLog');
 Route::post('/inventory-data-migration-v2', 'PhitomasControllerV2@inventoryDataMigration');
 
-//object.UniqueLot
-//object.LotGenExp
-//SL.SLInvparms
 
-//filter ParmKey = 0
-
-// if LotGenExp == 1
-//ExpandKyByTypeSp 
-
-// DataType == LotType
-// Key == LotNum excel
-// Site == site config
-// Result => lotNumber to final process
-// if not equal 1, lot num from excel
+Route::get('/bnm-exchange-rates', 'PhitomasBNMController@exchangeRates');

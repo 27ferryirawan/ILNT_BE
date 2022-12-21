@@ -7,8 +7,6 @@ use GuzzleHttp\Client;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
-use DateTime;
-use function GuzzleHttp\Promise\all;
 
 class PhitomasController extends Controller
 {
@@ -914,9 +912,8 @@ class PhitomasController extends Controller
         return $batchReturn;
     }
 
-    public function exchangeRates(Request $request)
-    { 
-        $tokenClient = new Client();
+    public function exchangeRates(Request $request){ 
+        $tokenClient = new Client(); //site url, username, password
         $token = $tokenClient->get('http://20.247.180.239/IDORequestService/ido/token/Demo_DALS/sa');
         $tokenData = json_decode($token->getBody()->getContents(), true)['Token'];
         if ($request->input('to_currency') == "" && $request->input('from_currency') != "") {
@@ -955,7 +952,7 @@ class PhitomasController extends Controller
                 from(
                 select ROW_NUMBER ( ) OVER ( order by curr_code asc) as row_id, * from ILNT_CurrencyMap_mst ) AS  a 
                 where curr_code='" . $request->input('to_currency') . "')
-            order by curr_code asc;");
+                order by curr_code asc;");
         }
 
         foreach ($to_currency as $data) {
@@ -1024,7 +1021,6 @@ class PhitomasController extends Controller
         }
 
         $insertBody['Changes'] = $changes;
-        return($insertBody);
         $insertClient = new Client();
         $insertRes = $insertClient->request('POST', 'http://20.247.180.239/IDORequestService/ido/update/SLCurrates?refresh=true', ['headers' => ['Authorization' => $tokenData], 'json' => $insertBody]);
         $insertResponse = json_decode($insertRes->getBody()->getContents(), true);

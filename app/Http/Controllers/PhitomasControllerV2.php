@@ -7,7 +7,6 @@ use GuzzleHttp\Client;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
-use DateTime;
 use function GuzzleHttp\Promise\all;
 
 class PhitomasControllerV2 extends Controller
