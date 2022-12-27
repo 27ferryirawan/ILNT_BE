@@ -34,4 +34,4 @@ Route::get('/inventory-data-migration-log', 'PhitomasController@dataMigratioonLo
 Route::post('/inventory-data-migration-v2', 'PhitomasControllerV2@inventoryDataMigration');
 
 
-Route::get('/bnm-exchange-rates', 'PhitomasBNMController@exchangeRates');
+Route::post('/bnm-exchange-rates', 'PhitomasBNMController@exchangeRates');
