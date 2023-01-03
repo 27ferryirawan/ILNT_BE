@@ -35,3 +35,4 @@ Route::post('/inventory-data-migration-v2', 'PhitomasControllerV2@inventoryDataM
 
 
 Route::post('/bnm-exchange-rates', 'PhitomasBNMController@exchangeRates');
+    
