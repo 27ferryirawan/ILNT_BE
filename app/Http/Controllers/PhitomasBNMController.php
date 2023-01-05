@@ -8,14 +8,70 @@ use Illuminate\Support\Facades\Response;
 
 class PhitomasBNMController extends Controller
 {
-    public function exchangeRates(Request $request){ 
+    protected function insertErrorLog($process_message, $client, $request, $tokenData){
+        $getBNMCurrency = $request->input('is_get_bnm_currency') == 1 ? 'Yes' : 'No';
+        $process_parameter = 'From Currency: ' . $request->input('from_currency') . ',
+        End Currency: ' . $request->input('to_currency') . ',
+        Rate Date: ' . $request->input('rate_date') . ',
+        Post Date: ' . $request->input('post_date') . ',
+        Rate Session: ' . $request->input('rate_session') . ',
+        Type: ' .$request->input('type') . ',
+        CSI URL: ' . $request->input('csi_url') . ',
+        CSI Username: ' . $request->input('csi_username') . ',
+        CSI Password: ' . $request->input('csi_password') . ',
+        BNM URL: ' . $request->input('bnm_url') . ',
+        CSI Site: '. $request->input('csi_site'). ',
+        Get BNM Currency": ' . $getBNMCurrency . '';
+        $logData[] = [
+            [
+                'Name' => "process_date",
+                'Value' => now()->toDateTimeString(),
+                'Modified' => true,
+                'ISNull' => false,
+            ],
+            [
+                'Name' => "process_name",
+                'Value' => 'BNM Rate Process',
+                'Modified' => true,
+                'ISNull' => false,
+            ],
+            [
+                'Name' => "process_parameter",
+                'Value' => $process_parameter,
+                'Modified' => true,
+                'ISNull' => false,
+            ],
+            [
+                'Name' => "process_message",
+                'Value' => $process_message,
+                'Modified' => true,
+                'ISNull' => false,
+            ]
+        ];
 
+        if(count($logData) > 0){
+            foreach ($logData as $data) {
+                $logChanges[] = [
+                    'Action' => 1,
+                    'ItemId' => "",
+                    'UpdateLocking' => "1",
+                    'Properties' => $data
+                ];
+            }
+            
+            $insertLogBody['Changes'] = $logChanges;
+            $insertRes = $client->request('POST', $request->input('csi_url').'/ido/update/ILNT_BNMRateProcessLog?refresh=true', ['headers' => ['Authorization' => $tokenData], 'json' => $insertLogBody]);
+            $insertResponse = json_decode($insertRes->getBody()->getContents(), true);
+        }
+    }
+    public function exchangeRates(Request $request){ 
         $client = new Client(); //site url, username, password
         $token = $client->request('GET', $request->input('csi_url').'/ido/token/'.$request->input('csi_site').'/'.$request->input('csi_username').'/'.$request->input('csi_password'));
         $tokenData = json_decode($token->getBody(), true)['Token'];
         
         if($tokenData == null || $tokenData == ""){
             $tokenErrorMessage = json_decode($token->getBody(), true)['Message'];
+            $this->insertErrorLog($tokenErrorMessage, $client, $request, $tokenData);
             return Response::json(array(
                 'Success'   => false,
                 'Code'      =>  404,
@@ -94,6 +150,7 @@ class PhitomasBNMController extends Controller
         
         if(!$to_currency['Success']){
             $errorMessage = $to_currency['Message'];
+            $this->insertErrorLog($errorMessage, $client, $request, $tokenData);
             return Response::json(array(
                 'Success'   => false,
                 'code'      =>  404,
@@ -102,10 +159,12 @@ class PhitomasBNMController extends Controller
         }
         
         if(count($to_currency['Items']) == 0){
+            $errorMessage = "Currency Code doesnt match";
+            $this->insertErrorLog($errorMessage, $client, $request, $tokenData);
             return Response::json(array(
                 'Success'   => false,
                 'code'      => 404,
-                'Message'   => "Currency Code doesnt match"
+                'Message'   => $errorMessage
             ), 404);
         }
 
@@ -164,6 +223,7 @@ class PhitomasBNMController extends Controller
                     ]
                 ];
             } else {
+                $this->insertErrorLog($datas['message'], $client, $request, $tokenData);
                 return [
                     'Currency Code' => $data['curr_code'],
                     'Date' => $request->rate_date,
@@ -185,7 +245,9 @@ class PhitomasBNMController extends Controller
         $insertBody['Changes'] = $changes;
         $insertRes = $client->request('POST', $request->input('csi_url').'/ido/update/SLCurrates?refresh=true', ['headers' => ['Authorization' => $tokenData], 'json' => $insertBody]);
         $insertResponse = json_decode($insertRes->getBody()->getContents(), true);
-
+        if(!$insertResponse['Success']){
+            $this->insertErrorLog($insertResponse['Message'], $client, $request, $tokenData);
+        }
         return response()->json($insertResponse);
     }
 }
